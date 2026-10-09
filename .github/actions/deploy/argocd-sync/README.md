@@ -3,7 +3,6 @@
 This composite action updates an ApplicationSet revision in an Argo CD
 configuration repository, then logs in to Argo CD and syncs the configured
 applications.
-
 ## Usage
 
 ```yaml

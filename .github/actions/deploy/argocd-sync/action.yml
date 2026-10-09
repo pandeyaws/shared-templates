@@ -46,6 +46,15 @@ inputs:
     description: Child app name to wait on
     required: true
     default: sample-python-app-dev
+  cert_manager_app:
+    description: Cert-manager app name to wait on
+    required: true
+    default: cert-manager
+  external-secrets:
+    description: External-dns app name to wait on
+    required: true
+    default: external-secrets    
+
   
 
 runs:
@@ -98,4 +107,6 @@ runs:
         CHILD_APP: ${{ inputs.child_app }}
       run: |
         argocd app wait "$CHILD_APP" --sync --health --timeout 600
+        argocd app sync ${{ inputs.cert_manager_app }}
+        argocd app sync ${{ inputs.external-secrets }}
         

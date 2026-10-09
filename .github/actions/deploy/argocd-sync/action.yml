@@ -28,6 +28,10 @@ inputs:
     description: Path to the ApplicationSet manifest in the ArgoCD config repo
     required: false
     default: argocd/sample-python-app-appset.yaml
+  environment_name:
+    description: ApplicationSet environment whose targetRevision should be updated
+    required: false
+    default: dev
   argocd_server:
     description: ArgoCD server host and port, for example 57.151.50.28:80
     required: true
@@ -70,6 +74,7 @@ runs:
         repo_name: ${{ inputs.repo_name }}
         branch: ${{ inputs.branch }}
         appset_path: ${{ inputs.appset_path }}
+        environment_name: ${{ inputs.environment_name }}
 
     - name: Install ArgoCD CLI
       shell: bash

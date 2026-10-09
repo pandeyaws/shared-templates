@@ -28,6 +28,10 @@ inputs:
     description: Path to the ApplicationSet manifest to update in the external repo
     required: false
     default: argocd/sample-python-app-appset.yaml
+  environment_name:
+    description: ApplicationSet environment whose targetRevision should be updated
+    required: false
+    default: dev
 
 runs:
   using: composite
@@ -42,7 +46,7 @@ runs:
         repositories: ${{ inputs.repo_name }}
         permission-contents: write
 
-    - name: Checkout external repo with app token
+    - name: Check out Argo CD configuration
       uses: actions/checkout@v4
       with:
         repository: ${{ inputs.repo_owner }}/${{ inputs.repo_name }}
@@ -51,27 +55,34 @@ runs:
         token: ${{ steps.argocd_token.outputs.token }}
         fetch-depth: 0
 
-    - name: Update image tag in ArgoCD repo
+    - name: Update ApplicationSet target revision
       shell: bash
       env:
         TARGET_REVISION: ${{ inputs.target_revision }}
         APPSET_PATH: ${{ inputs.appset_path }}
+        ENVIRONMENT_NAME: ${{ inputs.environment_name }}
       run: |
         python - <<'PY'
         import os
         import re
         from pathlib import Path
 
+        target_revision = os.environ["TARGET_REVISION"]
+        if not target_revision or "\n" in target_revision or "\r" in target_revision:
+            raise SystemExit("Target revision must be a non-empty single-line value")
+        environment_name = re.escape(os.environ["ENVIRONMENT_NAME"])
         appset = Path("argocd-config") / os.environ["APPSET_PATH"]
         text = appset.read_text(encoding="utf-8")
-        pattern = re.compile(r"(?m)^([ \t]*targetRevision:[ \t]*)v[^\s'\"]+([ \t]*)$")
+        pattern = re.compile(
+            rf"(?m)^([ \t]*-[ \t]*environment:[ \t]*{environment_name}[ \t]*\r?\n"
+            r"[ \t]*targetRevision:[ \t]*)([^\r\n]*)"
+        )
         updated, count = pattern.subn(
-            lambda match: f"{match.group(1)}{os.environ['TARGET_REVISION']}{match.group(2)}",
-            text,
+            lambda match: f"{match.group(1)}{target_revision}", text
         )
         if count != 1:
             raise SystemExit(
-                f"Expected exactly one literal targetRevision in {appset}, found {count}"
+                f"Expected exactly one {os.environ['ENVIRONMENT_NAME']} environment targetRevision in {appset}, found {count}"
             )
         appset.write_text(updated, encoding="utf-8")
         PY
@@ -81,13 +92,15 @@ runs:
       env:
         TARGET_REVISION: ${{ inputs.target_revision }}
         APPSET_PATH: ${{ inputs.appset_path }}
+        REPO_NAME: ${{ inputs.repo_name }}
+        BRANCH: ${{ inputs.branch }}
       run: |
         git -C argocd-config config user.name "github-actions[bot]"
         git -C argocd-config config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git -C argocd-config add "${APPSET_PATH}"
+        git -C argocd-config add "$APPSET_PATH"
         if git -C argocd-config diff --cached --quiet; then
           echo "ApplicationSet already targets ${TARGET_REVISION}; no commit needed."
           exit 0
         fi
-        git -C argocd-config commit -m "chore: deploy app ${TARGET_REVISION}"
-        git -C argocd-config push origin HEAD:${{ inputs.branch }}
+        git -C argocd-config commit -m "chore: deploy ${REPO_NAME} ${TARGET_REVISION}"
+        git -C argocd-config push origin "HEAD:${BRANCH}"

@@ -3,6 +3,31 @@ name: argocd sync
 description: Sync ArgoCD applications using configurable server and app names.
 
 inputs:
+  app_id:
+    description: GitHub App ID used to create the installation token
+    required: true
+  private_key:
+    description: Private key for the GitHub App
+    required: true
+  target_revision:
+    description: Target revision or image tag to set in the ApplicationSet
+    required: true
+  repo_owner:
+    description: GitHub repository owner for the ArgoCD config repo
+    required: false
+    default: pandeyaws
+  repo_name:
+    description: GitHub repository name for the ArgoCD config repo
+    required: false
+    default: sample-python-app-argocd
+  branch:
+    description: Branch to update in the ArgoCD config repo
+    required: false
+    default: master
+  appset_path:
+    description: Path to the ApplicationSet manifest in the ArgoCD config repo
+    required: false
+    default: argocd/sample-python-app-appset.yaml
   argocd_server:
     description: ArgoCD server host and port, for example 57.151.50.28:80
     required: true
@@ -27,7 +52,7 @@ runs:
   using: composite
   steps:
     - name: update argocd ApplicationSet manifest in an external repo
-      uses: ./.github/actions/deploy/update-argocd-yaml-file
+      uses: pandeyaws/shared-templates/.github/actions/deploy/update-argocd-yaml-file@master
       with:
         app_id: ${{ inputs.app_id }}
         private_key: ${{ inputs.private_key }}
@@ -70,9 +95,7 @@ runs:
     - name: Sync Child Apps
       shell: bash
       env:
-        DEV_APP: ${{ inputs.dev_app }}
-        CERT_MANAGER_APP: ${{ inputs.cert_manager_app }}
-        EXTERNAL_SECRETS_APP: ${{ inputs.external_secrets_app }}
+        CHILD_APP: ${{ inputs.child_app }}
       run: |
         argocd app wait "$CHILD_APP" --sync --health --timeout 600
         

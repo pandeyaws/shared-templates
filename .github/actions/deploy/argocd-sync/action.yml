@@ -17,18 +17,11 @@ inputs:
     description: Parent app name to sync and wait on
     required: true
     default: apps-sample-python-app
-  dev_app:
-    description: Development app name to wait on
+  child_app:
+    description: Child app name to wait on
     required: true
     default: sample-python-app-dev
-  cert_manager_app:
-    description: Cert-manager app name to sync
-    required: true
-    default: cert-manager
-  external_secrets_app:
-    description: External secrets app name to sync
-    required: true
-    default: external-secrets
+  
 
 runs:
   using: composite
@@ -43,7 +36,7 @@ runs:
         repo_name: ${{ inputs.repo_name }}
         branch: ${{ inputs.branch }}
         appset_path: ${{ inputs.appset_path }}
-        
+
     - name: Install ArgoCD CLI
       shell: bash
       run: |
@@ -81,5 +74,5 @@ runs:
         CERT_MANAGER_APP: ${{ inputs.cert_manager_app }}
         EXTERNAL_SECRETS_APP: ${{ inputs.external_secrets_app }}
       run: |
-        argocd app wait "$DEV_APP" --sync --health --timeout 600
+        argocd app wait "$CHILD_APP" --sync --health --timeout 600
         

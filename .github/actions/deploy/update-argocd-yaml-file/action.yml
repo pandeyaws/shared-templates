@@ -1,0 +1,93 @@
+name: Update ArgoCD ApplicationSet
+
+description: Update the targetRevision field in an ApplicationSet manifest in an external repo using a GitHub App token.
+
+inputs:
+  app_id:
+    description: GitHub App ID used to create the installation token
+    required: true
+  private_key:
+    description: Private key for the GitHub App
+    required: true
+  target_revision:
+    description: Target revision or image tag to set in the ApplicationSet
+    required: true
+  repo_owner:
+    description: GitHub repository owner for the ArgoCD config repo
+    required: true
+    default: pandeyaws
+  repo_name:
+    description: GitHub repository name for the ArgoCD config repo
+    required: true
+    default: sample-python-app-argocd
+  branch:
+    description: Branch to checkout in the external repo
+    required: false
+    default: master
+  appset_path:
+    description: Path to the ApplicationSet manifest to update in the external repo
+    required: false
+    default: argocd/sample-python-app-appset.yaml
+
+runs:
+  using: composite
+  steps:
+    - name: Generate GitHub App token
+      id: argocd_token
+      uses: actions/create-github-app-token@v1
+      with:
+        app_id: ${{ inputs.app_id }}
+        private_key: ${{ inputs.private_key }}
+        owner: ${{ inputs.repo_owner }}
+        repositories: ${{ inputs.repo_name }}
+        permission-contents: write
+
+    - name: Checkout external repo with app token
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.repo_owner }}/${{ inputs.repo_name }}
+        ref: ${{ inputs.branch }}
+        path: argocd-config
+        token: ${{ steps.argocd_token.outputs.token }}
+        fetch-depth: 0
+
+    - name: Update image tag in ArgoCD repo
+      shell: bash
+      env:
+        TARGET_REVISION: ${{ inputs.target_revision }}
+        APPSET_PATH: ${{ inputs.appset_path }}
+      run: |
+        python - <<'PY'
+        import os
+        import re
+        from pathlib import Path
+
+        appset = Path("argocd-config") / os.environ["APPSET_PATH"]
+        text = appset.read_text(encoding="utf-8")
+        pattern = re.compile(r"(?m)^([ \t]*targetRevision:[ \t]*)v[^\s'\"]+([ \t]*)$")
+        updated, count = pattern.subn(
+            lambda match: f"{match.group(1)}{os.environ['TARGET_REVISION']}{match.group(2)}",
+            text,
+        )
+        if count != 1:
+            raise SystemExit(
+                f"Expected exactly one literal targetRevision in {appset}, found {count}"
+            )
+        appset.write_text(updated, encoding="utf-8")
+        PY
+
+    - name: Commit and push ApplicationSet update
+      shell: bash
+      env:
+        TARGET_REVISION: ${{ inputs.target_revision }}
+        APPSET_PATH: ${{ inputs.appset_path }}
+      run: |
+        git -C argocd-config config user.name "github-actions[bot]"
+        git -C argocd-config config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git -C argocd-config add "${APPSET_PATH}"
+        if git -C argocd-config diff --cached --quiet; then
+          echo "ApplicationSet already targets ${TARGET_REVISION}; no commit needed."
+          exit 0
+        fi
+        git -C argocd-config commit -m "chore: deploy app ${TARGET_REVISION}"
+        git -C argocd-config push origin HEAD:${{ inputs.branch }}

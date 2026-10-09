@@ -1,0 +1,85 @@
+name: argocd sync
+
+description: Sync ArgoCD applications using configurable server and app names.
+
+inputs:
+  argocd_server:
+    description: ArgoCD server host and port, for example 57.151.50.28:80
+    required: true
+  argocd_username:
+    description: ArgoCD username for login
+    required: true
+    default: admin
+  argocd_password:
+    description: ArgoCD password for login
+    required: true
+  parent_app:
+    description: Parent app name to sync and wait on
+    required: true
+    default: apps-sample-python-app
+  dev_app:
+    description: Development app name to wait on
+    required: true
+    default: sample-python-app-dev
+  cert_manager_app:
+    description: Cert-manager app name to sync
+    required: true
+    default: cert-manager
+  external_secrets_app:
+    description: External secrets app name to sync
+    required: true
+    default: external-secrets
+
+runs:
+  using: composite
+  steps:
+    - name: update argocd ApplicationSet manifest in an external repo
+      uses: ./.github/actions/deploy/update-argocd-yaml-file
+      with:
+        app_id: ${{ inputs.app_id }}
+        private_key: ${{ inputs.private_key }}
+        target_revision: ${{ inputs.target_revision }}
+        repo_owner: ${{ inputs.repo_owner }}
+        repo_name: ${{ inputs.repo_name }}
+        branch: ${{ inputs.branch }}
+        appset_path: ${{ inputs.appset_path }}
+        
+    - name: Install ArgoCD CLI
+      shell: bash
+      run: |
+        curl --fail --show-error --location --retry 3 \
+          --output /tmp/argocd \
+          https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+        sudo install -m 555 /tmp/argocd /usr/local/bin/argocd
+        argocd version --client
+
+    - name: Login to ArgoCD
+      shell: bash
+      env:
+        ARGOCD_SERVER: ${{ inputs.argocd_server }}
+        ARGOCD_USERNAME: ${{ inputs.argocd_username }}
+        ARGOCD_PASSWORD: ${{ inputs.argocd_password }}
+      run: |
+        argocd login "$ARGOCD_SERVER" \
+          --username "$ARGOCD_USERNAME" \
+          --password "$ARGOCD_PASSWORD" \
+          --insecure \
+          --grpc-web
+
+    - name: Sync Parent App
+      shell: bash
+      env:
+        PARENT_APP: ${{ inputs.parent_app }}
+      run: |
+        argocd app sync "$PARENT_APP"
+        argocd app wait "$PARENT_APP" --health --sync
+
+    - name: Sync Child Apps
+      shell: bash
+      env:
+        DEV_APP: ${{ inputs.dev_app }}
+        CERT_MANAGER_APP: ${{ inputs.cert_manager_app }}
+        EXTERNAL_SECRETS_APP: ${{ inputs.external_secrets_app }}
+      run: |
+        argocd app wait "$DEV_APP" --sync --health --timeout 600
+        

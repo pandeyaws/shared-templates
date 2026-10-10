@@ -27,6 +27,10 @@ inputs:
   image_tag:
     description: Tag for the Docker image to build and push
     required: true
+  label:
+    description: Label for the Docker image to build and push
+    required: false
+    default: "latest"  
   scan_image:
     description: Whether to scan the Docker image for vulnerabilities
     required: false
@@ -106,8 +110,8 @@ runs:
       with:
         context: .
         push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+        tags: ${{ inputs.image_tag }}
+        labels: ${{ inputs.label }}
 
     - name: Scan image for vulnerabilities
       if: ${{ inputs.scan_image == 'true' }}

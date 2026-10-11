@@ -26,12 +26,12 @@ inputs:
     required: true
   image_tag:
     description: Tag for the Docker image to build and push
-    required: true
-   
+    required: true  
   scan_image:
     description: Whether to scan the Docker image for vulnerabilities
     required: false
     default: "true"
+    
 runs:
   using: "composite"
   steps:

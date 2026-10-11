@@ -119,3 +119,11 @@ jobs:
           git tag --force "${major_tag}" "${release_commit}"
           git push origin "refs/tags/${VERSION_TAG}"
           git push --force origin "refs/tags/${major_tag}"
+
+          {
+            echo "## Action release"
+            echo
+            echo "- Version tag: [${VERSION_TAG}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/tree/${VERSION_TAG})"
+            echo "- Major tag: [${major_tag}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/tree/${major_tag})"
+            echo "- Commit SHA: [\`${release_commit}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${release_commit})"
+          } >> "$GITHUB_STEP_SUMMARY"

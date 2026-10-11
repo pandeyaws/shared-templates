@@ -1,0 +1,106 @@
+name: Tag actions
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/actions/**/action.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tag-actions
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Create version tag and update action references
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+
+          mapfile -t version_tags < <(git tag --list --sort=-version:refname)
+          latest_tag=""
+          for tag in "${version_tags[@]}"; do
+            if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              latest_tag="$tag"
+              break
+            fi
+          done
+
+          if [[ -z "$latest_tag" ]]; then
+            next_tag="v1.0.0"
+          else
+            [[ "$latest_tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]
+            major="${BASH_REMATCH[1]}"
+            minor="${BASH_REMATCH[2]}"
+            patch="${BASH_REMATCH[3]}"
+            patch=$((10#$patch + 1))
+            next_tag="v${major}.${minor}.${patch}"
+          fi
+
+          if git rev-parse --quiet --verify "refs/tags/${next_tag}" >/dev/null; then
+            echo "Version tag '${next_tag}' already exists." >&2
+            exit 1
+          fi
+
+          major_tag="${next_tag%%.*}"
+          git tag "$next_tag" HEAD
+          git tag --force "$major_tag" HEAD
+          git push origin "refs/tags/${next_tag}"
+          git push --force origin "refs/tags/${major_tag}"
+
+          echo "tag=${next_tag}" >> "$GITHUB_OUTPUT"
+          echo "Created ${next_tag} and updated ${major_tag}."
+
+      - name: Update references and push to main
+        env:
+          VERSION_TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          updated_files_file="$RUNNER_TEMP/updated-action-refs.txt"
+          python3 - <<'PY' > "$updated_files_file"
+          import os
+          import re
+          from pathlib import Path
+
+          version_tag = os.environ["VERSION_TAG"]
+          reference = re.compile(
+              r"(pandeyaws/shared-templates/\.github/actions/[A-Za-z0-9_./-]+)"
+              r"@[^\s`\"']+"
+          )
+
+          for path in sorted(Path(".github/actions").rglob("*")):
+              if path.name not in {"action.yml", "README.md"}:
+                  continue
+              content = path.read_text(encoding="utf-8")
+              updated = reference.sub(rf"\g<1>@{version_tag}", content)
+              if updated != content:
+                  path.write_text(updated, encoding="utf-8")
+                  print(path.as_posix())
+          PY
+          mapfile -t updated_files < "$updated_files_file"
+
+          if (( ${#updated_files[@]} == 0 )); then
+            echo "No in-repository action references needed updating."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- "${updated_files[@]}"
+          git commit -m "chore: update action references to ${VERSION_TAG}"
+          git push origin HEAD:main

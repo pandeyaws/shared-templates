@@ -3,7 +3,7 @@ name: Tag actions
 on:
   push:
     branches:
-      - main
+      - master
     paths:
       - ".github/actions/**/action.yml"
       - ".github/actions/**/action.yaml"

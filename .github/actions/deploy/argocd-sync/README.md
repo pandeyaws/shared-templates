@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Sync Argo CD applications
-        uses: pandeyaws/shared-templates/.github/actions/deploy/argocd-sync@master
+        uses: pandeyaws/shared-templates/.github/actions/deploy/argocd-sync@v1
         with:
           app_id: ${{ vars.APP_ID }}
           private_key: ${{ secrets.APP_PRIVATE_KEY }}
@@ -26,8 +26,9 @@ jobs:
           external-secrets: external-secrets
 ```
 
-Replace `@master` with a release tag or commit SHA when you want to pin the
-action to a stable version.
+When an action definition changes on `main`, the workflow creates the next
+shared version tag and updates repository action references and usage examples.
+Pin to a commit SHA if you need an immutable reference.
 
 ## Inputs
 

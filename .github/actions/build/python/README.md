@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: Build and push image
-        uses: pandeyaws/shared-templates/.github/actions/build/python@<ref>
+        uses: pandeyaws/shared-templates/.github/actions/build/python@master
         with:
           python-version: "3.12"
           enable-tests: "true"
@@ -38,7 +38,9 @@ jobs:
           scan_image: "true"
 ```
 
-Replace `<ref>` with a release tag or commit SHA to pin the action version.
+When an action definition changes on `main`, the workflow creates the next
+shared version tag and updates repository action references and usage examples.
+Pin to a commit SHA if you need an immutable reference.
 Configure `ACR_NAME` and `ACR_LOGIN_SERVER` as repository or organization
 variables, and store credentials as GitHub secrets.
 

@@ -1,12 +1,15 @@
 name: Tag Actions
+
 on:
   push:
     branches:
       - master
     paths:
-      - '.github/actions/**/action.yml'    
+      - '.github/actions/**/action.yml'  
+
 permissions:
   contents: write
+
 jobs:
   tag:
     runs-on: ubuntu-latest
@@ -69,5 +72,27 @@ jobs:
       - name: Commit Release Content
         run: |
           git add .
+
           if git diff --cached --quiet; then
-       
+            echo "No references changed"
+          else
+            git commit -m "Release ${{ steps.version.outputs.tag }}"
+          fi
+
+      - name: Create Tag
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+
+          git tag "$TAG"
+
+          MAJOR_TAG="${TAG%%.*}"
+
+          git tag -f "$MAJOR_TAG"
+
+          git push origin "$TAG"
+          git push origin -f "$MAJOR_TAG"
+
+      - name: Cleanup
+        run: |
+          git checkout master
+          git branch -D "release-${{ steps.version.outputs.tag }}"

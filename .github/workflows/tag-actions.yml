@@ -1,106 +1,73 @@
-name: Tag actions
-
+name: Tag Actions
 on:
   push:
     branches:
-      - main
+      - master
     paths:
-      - ".github/actions/**/action.yml"
-
+      - '.github/actions/**/action.yml'    
 permissions:
   contents: write
-
-concurrency:
-  group: tag-actions
-  cancel-in-progress: false
-
 jobs:
   tag:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Check out main
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: main
           fetch-depth: 0
 
-      - name: Create version tag and update action references
-        id: version
-        shell: bash
+      - name: Configure Git
         run: |
-          set -euo pipefail
-          git fetch --force --tags origin
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          mapfile -t version_tags < <(git tag --list --sort=-version:refname)
-          latest_tag=""
-          for tag in "${version_tags[@]}"; do
-            if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              latest_tag="$tag"
-              break
-            fi
-          done
+      - name: Generate Version
+        id: version
+        run: |
+          git fetch --tags
 
-          if [[ -z "$latest_tag" ]]; then
+          latest_tag=$(git tag -l 'v*.*.*' --sort=-version:refname | head -n1)
+
+          if [ -z "$latest_tag" ]; then
             next_tag="v1.0.0"
           else
-            [[ "$latest_tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]
-            major="${BASH_REMATCH[1]}"
-            minor="${BASH_REMATCH[2]}"
-            patch="${BASH_REMATCH[3]}"
-            patch=$((10#$patch + 1))
+            major=$(echo "$latest_tag" | cut -d. -f1 | tr -d v)
+            minor=$(echo "$latest_tag" | cut -d. -f2)
+            patch=$(echo "$latest_tag" | cut -d. -f3)
+
+            patch=$((patch + 1))
             next_tag="v${major}.${minor}.${patch}"
           fi
 
-          if git rev-parse --quiet --verify "refs/tags/${next_tag}" >/dev/null; then
-            echo "Version tag '${next_tag}' already exists." >&2
-            exit 1
-          fi
+          echo "tag=$next_tag" >> $GITHUB_OUTPUT
 
-          major_tag="${next_tag%%.*}"
-          git tag "$next_tag" HEAD
-          git tag --force "$major_tag" HEAD
-          git push origin "refs/tags/${next_tag}"
-          git push --force origin "refs/tags/${major_tag}"
-
-          echo "tag=${next_tag}" >> "$GITHUB_OUTPUT"
-          echo "Created ${next_tag} and updated ${major_tag}."
-
-      - name: Update references and push to main
-        env:
-          VERSION_TAG: ${{ steps.version.outputs.tag }}
-        shell: bash
+      - name: Create Temporary Release Branch
         run: |
-          set -euo pipefail
-          updated_files_file="$RUNNER_TEMP/updated-action-refs.txt"
-          python3 - <<'PY' > "$updated_files_file"
-          import os
-          import re
-          from pathlib import Path
+          RELEASE_BRANCH="release-${{ steps.version.outputs.tag }}"
 
-          version_tag = os.environ["VERSION_TAG"]
-          reference = re.compile(
-              r"(pandeyaws/shared-templates/\.github/actions/[A-Za-z0-9_./-]+)"
-              r"@[^\s`\"']+"
-          )
+          git checkout -b "$RELEASE_BRANCH"
 
-          for path in sorted(Path(".github/actions").rglob("*")):
-              if path.name not in {"action.yml", "README.md"}:
-                  continue
-              content = path.read_text(encoding="utf-8")
-              updated = reference.sub(rf"\g<1>@{version_tag}", content)
-              if updated != content:
-                  path.write_text(updated, encoding="utf-8")
-                  print(path.as_posix())
-          PY
-          mapfile -t updated_files < "$updated_files_file"
+      - name: Update References
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
 
-          if (( ${#updated_files[@]} == 0 )); then
-            echo "No in-repository action references needed updating."
-            exit 0
-          fi
+          echo "Updating references to ${TAG}"
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- "${updated_files[@]}"
-          git commit -m "chore: update action references to ${VERSION_TAG}"
-          git push origin HEAD:main
+          find . -type f \( \
+            -name "*.yml" -o \
+            -name "*.yaml" -o \
+            -name "README.md" -o \
+            -name "action.yml" \
+          \) | while read file
+          do
+            sed -i -E \
+              "s|(pandeyaws/[^@[:space:]]+)@v[0-9]+\.[0-9]+\.[0-9]+|\1@${TAG}|g" \
+              "$file"
+          done
+
+      - name: Commit Release Content
+        run: |
+          git add .
+          if git diff --cached --quiet; then
+       

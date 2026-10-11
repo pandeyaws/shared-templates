@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Sync Argo CD applications
-        uses: pandeyaws/shared-templates/.github/actions/deploy/argocd-sync@v1
+        uses: pandeyaws/shared-templates/.github/actions/deploy/argocd-sync@v1.0.1
         with:
           app_id: ${{ vars.APP_ID }}
           private_key: ${{ secrets.APP_PRIVATE_KEY }}

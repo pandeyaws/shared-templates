@@ -65,7 +65,7 @@ runs:
   using: composite
   steps:
     - name: update argocd ApplicationSet manifest in an external repo
-      uses: pandeyaws/shared-templates/.github/actions/deploy/update-argocd-yaml-file@master
+      uses: pandeyaws/shared-templates/.github/actions/deploy/update-argocd-yaml-file@v1.0.1
       with:
         app_id: ${{ inputs.app_id }}
         private_key: ${{ inputs.private_key }}

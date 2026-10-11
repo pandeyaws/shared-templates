@@ -9,7 +9,7 @@ and pushes the change.
 ```yaml
 steps:
   - name: Update the Argo CD ApplicationSet
-    uses: pandeyaws/shared-templates/.github/actions/deploy/update-argocd-yaml-file@v1
+    uses: pandeyaws/shared-templates/.github/actions/deploy/update-argocd-yaml-file@v1.0.1
     with:
       app_id: ${{ vars.APP_ID }}
       private_key: ${{ secrets.APP_PRIVATE_KEY }}

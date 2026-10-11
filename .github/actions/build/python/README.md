@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: Build and push image
-        uses: pandeyaws/shared-templates/.github/actions/build/python@master
+        uses: pandeyaws/shared-templates/.github/actions/build/python@v1.0.1
         with:
           python-version: "3.12"
           enable-tests: "true"

@@ -31,7 +31,8 @@ inputs:
   scan_image:
     description: Whether to scan the Docker image for vulnerabilities
     required: false
-    default: "true"      
+    default: "true"   
+       
 runs:
   using: "composite"
   steps:
